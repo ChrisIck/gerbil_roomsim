@@ -1,0 +1,90 @@
+{
+    "OPTIMIZATION": {
+        "INITIAL_LEARNING_RATE": 0.02,
+        "MOMENTUM": 0.7,
+        "WEIGHT_DECAY": 1e-06,
+        "NUM_EPOCHS": 40,
+        "OPTIMIZER": "SGD",
+        "CLIP_GRADIENTS": true,
+        "LR_PARAMS": {
+            "SCHEDULER": "COSINE_ANNEALING",
+            "MIN_LEARNING_RATE": 0.0
+        }
+    },
+    "MODEL_PARAMS": {
+        "SHOULD_DOWNSAMPLE": [
+            false,
+            true,
+            false,
+            true,
+            false,
+            true,
+            false,
+            true,
+            false,
+            true
+        ],
+        "CONV_FILTER_SIZES": [
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21,
+            21
+        ],
+        "CONV_NUM_CHANNELS": [
+            64,
+            64,
+            64,
+            64,
+            64,
+            64,
+            64,
+            64,
+            64,
+            64
+        ],
+        "CONV_DILATIONS": [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+        ],
+        "OUTPUT_TYPE": "GAUSSIAN_FULL_COV"
+    },
+    "ARCHITECTURE": "GerbilizerSimpleNetwork",
+    "GENERAL": {
+        "CONFIG_NAME": "simple_network",
+        "DEVICE": "GPU",
+        "TORCH_SEED": 888,
+        "NUMPY_SEED": 777,
+        "LOG_INTERVAL": 3,
+        "SAVE_SAMPLE_OUTPUT": false,
+        "SAVE_LOSS_PLOT": false
+    },
+    "DATA": {
+        "NUM_MICROPHONES": 8,
+        "BATCH_SIZE": 32,
+        "CROP_LENGTH": 8192,
+        "ARENA_DIMS": [
+            572,
+            356,
+        ],
+        "ARENA_DIMS_UNITS": "MM",
+        "SAMPLE_RATE": 125000
+    },
+    "AUGMENTATIONS": {
+        "AUGMENT_LABELS": false,
+        "AUGMENT_DATA": true,
+    }
+}
