@@ -4,6 +4,50 @@ import pyroomacoustics as pra
 import sys
 import h5py
 from tqdm import tqdm
+import yaml
+
+import argparse
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument(
+    "--save-path",
+    dest="save_path",
+    type=str,
+    help="path to save rir dataset",
+    default='default.h5',
+)
+
+parser.add_argument(
+    "--load-yaml",
+    dest="load_yaml",
+    type=str,
+    help="path to load yaml conf",
+    required=False,
+    default=None,
+)
+
+parser.add_argument(
+    "--save-yaml",
+    dest="save_yaml",
+    type=str,
+    help="path to save yaml conf",
+    required=False,
+    default=None,
+)
+
+parser.add_argument(
+    "--compute-rirs",
+    dest="compute_rirs",
+    type=bool,
+    help="option to compute rirs (troubleshoooting)",
+    required=False,
+    default=True,
+)
+
+
+
+args = parser.parse_args()
 
 from pyroomacoustics.directivities import (
     DirectivityPattern,
@@ -17,38 +61,57 @@ cardioid_map = {'CARDIOID' : DirectivityPattern.CARDIOID,
                'OMNI' : DirectivityPattern.OMNI,
                'SUBCARDIOID' : DirectivityPattern.SUBCARDIOID}
 
-default_mic_array = np.array(
+default_mic_pos = np.array(
         [
-            [0.5715, 0.0, 0.3583],
-            [0.0, 0.0, 0.3583],
-            [0.0, 0.3556, 0.3583],
-            [0.5715, 0.3556, 0.3583],
-            [0.28575, 0.0, 0.3583],
-            [0.0, 0.1778, 0.3583],
-            [0.28575, 0.3556, 0.3583],
-            [0.5715, 0.1778, 0.3583],
+            [0.02064812, 0.05017473, 0.28968258],
+            [0.55085188, 0.05017473, 0.28968258],
+            [0.55085188, 0.30542527, 0.28968258],
+            [0.02064812, 0.30542527, 0.28968258]
         ])
 
+default_mic_dir = np.array(
+        [
+            [ 0.37556186,  0.7675516,  -0.51943994],
+            [-0.36181653,  0.77332777, -0.52062756],
+            [-0.36777207, -0.7940425,  -0.4839836 ],
+            [ 0.35280470, -0.779317,   -0.5178743 ]
+        ])
 
-pra_config_dict = {
+#room absorption bugfix via aramis
+unscaled_coeffs = [0.1, 0.3, 0.6, 1.0, 1.9, 5.8, 20.3, 100.0, 530.0, 800.0]
+scaled_coeffs = [c * 1e-3 for c in unscaled_coeffs]
+center_freqs=[
+        125.0,
+        250.0,
+        500.0,
+        1000.0,
+        2000.0,
+        4000.0,
+        8000.0,
+        16000.0,
+        32000.0,
+        64000.0,
+    ]    
+
+
+default_conf_dict = {
     'room' : {
         'dim' : [0.5715, 0.3556, 0.3683], #from aramis' experiments at base
         'ceil_offset' : 0.0254,
-        'room_jitter' : .01,
-        'wall_absorption' : 0.15, #from aramis' experiments
-        'flor_absorption' : 0.95,
-        'ceil_absorption' : 0.95,
-        'scattering' : 0.9, #from aramis' experiments
-        'max_order' : 9, #from aramis' experiments
-        'sr' : 125000 #way high
+        'wall_absorption' : 0.14746730029582977, #from aramis' diff_ism experiments
+        'flor_absorption' : 0.6360408663749695,
+        'ceil_absorption' : 0.9422023296356201,
+        'scattering' : 0.9,
+        'max_order' : 9,
+        'sr' : 125000,
+        'air_abs' : (scaled_coeffs, center_freqs)
     },
     
     'mics' : {
-        'mic_pos' : default_mic_array,
-        'mic_dir' : None, #if none, point to center, otherwise, specify x,y,z
+        'mic_pos' : default_mic_pos,
+        'mic_dir' : default_mic_dir, #if none, point to center, otherwise, specify x,y,z
         'mic_pattern' : "SUBCARDIOID", #specify directivity pattern
         'mic_diam' : 0.036, #from aramis' experiments
-        'mic_jitter' : .01
     },
     
     'srcs' : {
@@ -91,9 +154,6 @@ def construct_room(config):
     #pull room dimensions from config
     room_config = config['room']
     room_dims = np.array(room_config['dim'])
-    
-    if room_config['room_jitter'] is not None:
-        room_dims += np.random.normal(scale=room_config['room_jitter'], size=3)
     
     r_width, r_length, r_height = room_dims
     
@@ -161,12 +221,17 @@ def construct_room(config):
         air_absorption=True,
     )
     
+    #modify air absorption, if included
+    if room_config['air_abs'] is not None:
+        coeffs, center_freqs = room_config['air_abs']
+        room.simulator_state["air_abs_needed"] = True
+        absorption_bands = room.octave_bands(coeffs=coeffs,
+                                             center_freqs=center_freqs)
+        room.air_absorption = absorption_bands
+    
     #add microphones
     mic_config = config['mics']
     microphone_pos = np.array(mic_config['mic_pos'])
-    if mic_config['mic_jitter'] is not None:
-        microphone_pos += np.random.normal(scale=mic_config['mic_jitter'], size=microphone_pos.shape)
-    
 
     if mic_config['mic_dir'] is not None:
         mic_direction_vectors = mic_config['mic_dir']
@@ -261,5 +326,18 @@ def store_rirs(path, rir_db):
         f.create_dataset("rir_length_idx", data=np.cumsum(np.insert(rir_lengths, 0, 0)))
         
 if __name__ == '__main__':
-    rir_db = get_rirs(pra_config_dict)
-    store_rirs('default.h5', rir_db)
+    if args.load_yaml is not None:
+        with open(default_yaml, 'r') as f:
+            conf_dict = yaml.load(f, yaml.Loader)
+    else:
+        conf_dict = default_conf_dict
+    
+    
+    
+    if args.save_yaml is not None:
+        with open(args.save_yaml, 'w') as f:
+            yaml.dump(conf_dict, f)
+    
+    if args.compute_rirs:
+        rir_db = get_rirs(conf_dict)
+        store_rirs(args.save_path, rir_db)

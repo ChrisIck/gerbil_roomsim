@@ -73,7 +73,7 @@
         "SAVE_LOSS_PLOT": false
     },
     "DATA": {
-        "NUM_MICROPHONES": 8,
+        "NUM_MICROPHONES": 4,
         "BATCH_SIZE": 32,
         "CROP_LENGTH": 8192,
         "ARENA_DIMS": [
