@@ -4,9 +4,14 @@ import pyroomacoustics as pra
 import sys
 import h5py
 from tqdm import tqdm
-import yaml
 
 import argparse
+
+from pyroomacoustics.directivities import (
+    DirectivityPattern,
+    DirectionVector,
+    CardioidFamily,
+)
 
 parser = argparse.ArgumentParser()
 
@@ -45,15 +50,116 @@ parser.add_argument(
     default=True,
 )
 
+parser.add_argument(
+    "--room-dims",
+    dest="room_dims",
+    type=list,
+    help="sets room dimensions",
+    required=False,
+    default=[0.5715, 0.3556, 0.3683],
+)
 
+parser.add_argument(
+    "--ceil-offset",
+    dest="ceil_offset",
+    type=float,
+    help="sets ceiling offest (compared to base)",
+    required=False,
+    default=0.0254,
+)
+
+parser.add_argument(
+    "--wall-abs",
+    dest="wall_abs",
+    type=float,
+    help="sets wall absorption coefficient",
+    required=False,
+    default=0.14746730029582977,
+)
+
+parser.add_argument(
+    "--flor-abs",
+    dest="flor_abs",
+    type=float,
+    help="sets floor absorption coefficient",
+    required=False,
+    default=0.6360408663749695,
+)
+
+parser.add_argument(
+    "--ceil-abs",
+    dest="ceil_abs",
+    type=float,
+    help="sets ceiling absorption coefficient",
+    required=False,
+    default=0.9422023296356201,
+)
+
+parser.add_argument(
+    "--scattering",
+    dest="scattering",
+    type=float,
+    help="sets scattering coefficient",
+    required=False,
+    default=0.9,
+)
+
+parser.add_argument(
+    "--max-order",
+    dest="max_order",
+    type=int,
+    help="sets max reflection order",
+    required=False,
+    default=9,
+)
+
+parser.add_argument(
+    "--jitter-dims",
+    dest="jitter_dims",
+    type=float,
+    help="sets jitter STD for room dims (no jitter if None)",
+    required=False,
+    default=None,
+)
+
+parser.add_argument(
+    "--jitter-abs",
+    dest="jitter_abs",
+    type=float,
+    help="sets jitter STD for surface absorption coefficients (no jitter if None)",
+    required=False,
+    default=None,
+)
+
+parser.add_argument(
+    "--jitter-scattering",
+    dest="jitter_scattering",
+    type=float,
+    help="sets jitter STD for scattering coefficient (no jitter if None)",
+    required=False,
+    default=None,
+)
+
+parser.add_argument(
+    "--n-rirs",
+    dest="n_rirs",
+    type=float,
+    help="number of RIRs to generate",
+    required=False,
+    default=20000,
+)
+
+parser.add_argument(
+    "--z-offset",
+    dest="z_offset",
+    type=float,
+    help="offset from ground for rirs",
+    required=False,
+    default=5e-2,
+)
 
 args = parser.parse_args()
 
-from pyroomacoustics.directivities import (
-    DirectivityPattern,
-    DirectionVector,
-    CardioidFamily,
-)
 
 cardioid_map = {'CARDIOID' : DirectivityPattern.CARDIOID,
                'FIGURE_EIGHT' : DirectivityPattern.FIGURE_EIGHT,
@@ -96,15 +202,21 @@ center_freqs=[
 
 default_conf_dict = {
     'room' : {
-        'dim' : [0.5715, 0.3556, 0.3683], #from aramis' experiments at base
-        'ceil_offset' : 0.0254,
-        'wall_absorption' : 0.14746730029582977, #from aramis' diff_ism experiments
-        'flor_absorption' : 0.6360408663749695,
-        'ceil_absorption' : 0.9422023296356201,
-        'scattering' : 0.9,
-        'max_order' : 9,
+        'dim' : args.room_dims, #from aramis' experiments at base
+        'ceil_offset' : args.ceil_offset,
+        'wall_abs' : args.wall_abs, #from aramis' diff_ism experiments
+        'flor_abs' : args.flor_abs,
+        'ceil_abs' : args.ceil_abs,
+        'scattering' : args.scattering,
+        'max_order' : args.max_order,
         'sr' : 125000,
-        'air_abs' : (scaled_coeffs, center_freqs)
+        'air_abs' : (scaled_coeffs, center_freqs),
+        
+        'jitter' : {
+            'dims' : args.jitter_dims,
+            'abs' : args.jitter_abs,
+            'scattering' : args.jitter_scattering
+        }
     },
     
     'mics' : {
@@ -115,10 +227,9 @@ default_conf_dict = {
     },
     
     'srcs' : {
-        'n_src' : 20000, #specified per aramis' experiments
-        'src_dir' : None, #if none, random, else, provide azi, colat
+        'n_src' : args.n_rirs, #specified per aramis' experiments
         'src_pattern' : "OMNI", #specify directivity pattern
-        'z_offset': 5e-2 #offset from ground for sources
+        'z_offset': args.z_offset #offset from ground for sources
     },
     
     'seed' : 5042024
@@ -153,7 +264,45 @@ def get_scaled_pos(config, pos):
 def construct_room(config):
     #pull room dimensions from config
     room_config = config['room']
+    room_jitter = room_config['jitter']
+    
+    #load room geo
     room_dims = np.array(room_config['dim'])
+    r_offset = room_config['ceil_offset']
+    
+    #vary dims if jitter enabled
+    if room_jitter['dims'] is not None:
+        room_dims += np.random.normal(scale=room_jitter['dims'],size=3)
+    
+    #load absorption coeffs for surfaces
+    wall_abs = room_config['wall_abs']
+    flor_abs = room_config['flor_abs']
+    ceil_abs = room_config['ceil_abs']
+    
+    #vary absorption if jitter enabled
+    if room_jitter['abs'] is not None:
+        wall_abs += np.random.normal(scale=room_jitter['abs'])
+        flor_abs += np.random.normal(scale=room_jitter['abs'])
+        ceil_abs += np.random.normal(scale=room_jitter['abs'])
+        
+        wall_abs = np.max([wall_abs, 1])
+        flor_abs = np.max([flor_abs, 1])
+        ceil_abs = np.max([ceil_abs, 1])       
+
+    absorption_arr = [wall_abs] * 4 + [
+                        flor_abs,
+                        ceil_abs,
+                     ]
+    
+
+    scattering = room_config['scattering']
+    if room_jitter['scattering'] is not None:
+        scattering += np.random.normal(scale=room_jitter['scattering'])
+    
+    air_abs = room_config['air_abs']
+    
+    sr = room_config['sr']
+    max_order = room_config['max_order']
     
     r_width, r_length, r_height = room_dims
     
@@ -168,7 +317,6 @@ def construct_room(config):
     )
     
     #compute ceil corners w/ offset
-    r_offset = room_config['ceil_offset']
     ceiling_corners = np.array(
         [
             [0 - r_offset, 0 - r_offset, r_height],
@@ -192,14 +340,8 @@ def construct_room(config):
         ]
     )
     
-    #load absorption coeffs for surfaces
-    absorption_arr = [room_config['wall_absorption']] * 4 + [
-                        room_config['flor_absorption'],
-                        room_config['ceil_absorption'],
-                     ]
-    
     #compute materials via absorption/scattering coefficients
-    materials = [pra.Material(a, room_config['scattering']) for a in absorption_arr]
+    materials = [pra.Material(a, scattering) for a in absorption_arr]
     
     #build walls
     walls = [
@@ -214,16 +356,16 @@ def construct_room(config):
     # Construct room
     room = pra.room.Room(
         walls=walls,
-        fs=room_config['sr'],
-        max_order=room_config['max_order'],
+        fs=sr,
+        max_order=max_order,
         use_rand_ism=False,
         ray_tracing=False,
         air_absorption=True,
     )
     
     #modify air absorption, if included
-    if room_config['air_abs'] is not None:
-        coeffs, center_freqs = room_config['air_abs']
+    if air_abs is not None:
+        coeffs, center_freqs = air_abs
         room.simulator_state["air_abs_needed"] = True
         absorption_bands = room.octave_bands(coeffs=coeffs,
                                              center_freqs=center_freqs)
@@ -265,7 +407,7 @@ def construct_room(config):
         all_directivities.append(directivity)
     
     mic_array = pra.MicrophoneArray(
-        microphone_pos.T, fs=room_config['sr'], directivity=all_directivities
+        microphone_pos.T, fs=sr, directivity=all_directivities
     )
     room.add_microphone_array(mic_array)
     
@@ -278,16 +420,13 @@ def get_rirs(config):
     pbar = tqdm(total=src_config['n_src'])
     i = 0
     while i<src_config['n_src']:
-    
-        pos = arena_random_point(config['room']['dim'],z_offset=src_config['z_offset'])
         room = construct_room(config)
+        pos = arena_random_point(config['room']['dim'],z_offset=src_config['z_offset'])
         
-        if src_config['src_dir'] is not None:
-            azi, col = src_config['src_dir'][i]
-        else:
-            azi = 360 * np.random.rand()
-            col = 180 * np.random.rand()
-            
+        
+       
+        azi = 360 * np.random.rand()
+        col = 180 * np.random.rand()    
         dir_obj = CardioidFamily(orientation=DirectionVector(azimuth=azi, colatitude=col, degrees=True),
                                  pattern_enum=cardioid_map[src_config['src_pattern']])
     
@@ -331,8 +470,6 @@ if __name__ == '__main__':
             conf_dict = yaml.load(f, yaml.Loader)
     else:
         conf_dict = default_conf_dict
-    
-    
     
     if args.save_yaml is not None:
         with open(args.save_yaml, 'w') as f:

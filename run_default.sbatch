@@ -19,4 +19,5 @@ singularity exec --nv \
     source /ext3/env.sh;
     cd /home/ci411/gerbil_roomsim;
     python rir_builder.py --save-path="/vast/ci411/gerbil_data/rir_datasets/default.h5" --save-yaml="rir_configs/default.yaml"
-    python -m gerbilizer --config model_configs/base_config.json5 --data /vast/ci411/gerbil_data/rir_datasets/default.h5 --save-path /vast/ci411/gerbil_data/models/default"
+    python -m gerbilizer --config model_configs/base_config.json5 --data /vast/ci411/gerbil_data/rir_datasets/default.h5 --save-path /vast/ci411/gerbil_data/models/default
+    python -m gerbilizer.assess --inference --data /vast/ci411/gerbil_data/vocal_datasets/preprocessed/speaker_dataset_full.h5 --config /vast/ci411/gerbil_data/models/default/config.json -o /vast/ci411/gerbil_data/models/default/results.h5"
