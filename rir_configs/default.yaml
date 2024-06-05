@@ -70,20 +70,23 @@ room:
     - 16000.0
     - 32000.0
     - 64000.0
-  ceil_absorption: 0.9422023296356201
+  ceil_abs: 0.9422023296356201
   ceil_offset: 0.0254
   dim:
   - 0.5715
   - 0.3556
   - 0.3683
-  flor_absorption: 0.6360408663749695
+  flor_abs: 0.6360408663749695
+  jitter:
+    abs: null
+    dims: null
+    scattering: null
   max_order: 9
   scattering: 0.9
   sr: 125000
-  wall_absorption: 0.14746730029582977
+  wall_abs: 0.14746730029582977
 seed: 5042024
 srcs:
   n_src: 20000
-  src_dir: null
   src_pattern: OMNI
   z_offset: 0.05

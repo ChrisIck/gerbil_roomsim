@@ -4,6 +4,7 @@ import pyroomacoustics as pra
 import sys
 import h5py
 from tqdm import tqdm
+from pqdm.processes import pqdm
 
 import argparse
 
@@ -12,154 +13,6 @@ from pyroomacoustics.directivities import (
     DirectionVector,
     CardioidFamily,
 )
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument(
-    "--save-path",
-    dest="save_path",
-    type=str,
-    help="path to save rir dataset",
-    default='default.h5',
-)
-
-parser.add_argument(
-    "--load-yaml",
-    dest="load_yaml",
-    type=str,
-    help="path to load yaml conf",
-    required=False,
-    default=None,
-)
-
-parser.add_argument(
-    "--save-yaml",
-    dest="save_yaml",
-    type=str,
-    help="path to save yaml conf",
-    required=False,
-    default=None,
-)
-
-parser.add_argument(
-    "--compute-rirs",
-    dest="compute_rirs",
-    type=bool,
-    help="option to compute rirs (troubleshoooting)",
-    required=False,
-    default=True,
-)
-
-parser.add_argument(
-    "--room-dims",
-    dest="room_dims",
-    type=list,
-    help="sets room dimensions",
-    required=False,
-    default=[0.5715, 0.3556, 0.3683],
-)
-
-parser.add_argument(
-    "--ceil-offset",
-    dest="ceil_offset",
-    type=float,
-    help="sets ceiling offest (compared to base)",
-    required=False,
-    default=0.0254,
-)
-
-parser.add_argument(
-    "--wall-abs",
-    dest="wall_abs",
-    type=float,
-    help="sets wall absorption coefficient",
-    required=False,
-    default=0.14746730029582977,
-)
-
-parser.add_argument(
-    "--flor-abs",
-    dest="flor_abs",
-    type=float,
-    help="sets floor absorption coefficient",
-    required=False,
-    default=0.6360408663749695,
-)
-
-parser.add_argument(
-    "--ceil-abs",
-    dest="ceil_abs",
-    type=float,
-    help="sets ceiling absorption coefficient",
-    required=False,
-    default=0.9422023296356201,
-)
-
-parser.add_argument(
-    "--scattering",
-    dest="scattering",
-    type=float,
-    help="sets scattering coefficient",
-    required=False,
-    default=0.9,
-)
-
-parser.add_argument(
-    "--max-order",
-    dest="max_order",
-    type=int,
-    help="sets max reflection order",
-    required=False,
-    default=9,
-)
-
-parser.add_argument(
-    "--jitter-dims",
-    dest="jitter_dims",
-    type=float,
-    help="sets jitter STD for room dims (no jitter if None)",
-    required=False,
-    default=None,
-)
-
-parser.add_argument(
-    "--jitter-abs",
-    dest="jitter_abs",
-    type=float,
-    help="sets jitter STD for surface absorption coefficients (no jitter if None)",
-    required=False,
-    default=None,
-)
-
-parser.add_argument(
-    "--jitter-scattering",
-    dest="jitter_scattering",
-    type=float,
-    help="sets jitter STD for scattering coefficient (no jitter if None)",
-    required=False,
-    default=None,
-)
-
-parser.add_argument(
-    "--n-rirs",
-    dest="n_rirs",
-    type=float,
-    help="number of RIRs to generate",
-    required=False,
-    default=20000,
-)
-
-parser.add_argument(
-    "--z-offset",
-    dest="z_offset",
-    type=float,
-    help="offset from ground for rirs",
-    required=False,
-    default=5e-2,
-)
-
-args = parser.parse_args()
-
 
 cardioid_map = {'CARDIOID' : DirectivityPattern.CARDIOID,
                'FIGURE_EIGHT' : DirectivityPattern.FIGURE_EIGHT,
@@ -197,44 +50,211 @@ center_freqs=[
         16000.0,
         32000.0,
         64000.0,
-    ]    
+    ]
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--save-path",
+        dest="save_path",
+        type=str,
+        help="path to save rir dataset",
+        default='default.h5',
+    )
+
+    parser.add_argument(
+        "--load-yaml",
+        dest="load_yaml",
+        type=str,
+        help="path to load yaml conf",
+        required=False,
+        default=None,
+    )
+
+    parser.add_argument(
+        "--save-yaml",
+        dest="save_yaml",
+        type=str,
+        help="path to save yaml conf",
+        required=False,
+        default=None,
+    )
+
+    parser.add_argument(
+        "--compute-rirs",
+        dest="compute_rirs",
+        type=bool,
+        help="option to compute rirs (troubleshoooting)",
+        required=False,
+        default=True,
+    )
+
+    parser.add_argument(
+        "--room-dims",
+        dest="room_dims",
+        type=list,
+        help="sets room dimensions",
+        required=False,
+        default=[0.5715, 0.3556, 0.3683],
+    )
+
+    parser.add_argument(
+        "--ceil-offset",
+        dest="ceil_offset",
+        type=float,
+        help="sets ceiling offest (compared to base)",
+        required=False,
+        default=0.0254,
+    )
+
+    parser.add_argument(
+        "--wall-abs",
+        dest="wall_abs",
+        type=float,
+        help="sets wall absorption coefficient",
+        required=False,
+        default=0.14746730029582977,
+    )
+
+    parser.add_argument(
+        "--flor-abs",
+        dest="flor_abs",
+        type=float,
+        help="sets floor absorption coefficient",
+        required=False,
+        default=0.6360408663749695,
+    )
+
+    parser.add_argument(
+        "--ceil-abs",
+        dest="ceil_abs",
+        type=float,
+        help="sets ceiling absorption coefficient",
+        required=False,
+        default=0.9422023296356201,
+    )
+
+    parser.add_argument(
+        "--scattering",
+        dest="scattering",
+        type=float,
+        help="sets scattering coefficient",
+        required=False,
+        default=0.9,
+    )
+
+    parser.add_argument(
+        "--max-order",
+        dest="max_order",
+        type=int,
+        help="sets max reflection order",
+        required=False,
+        default=9,
+    )
+
+    parser.add_argument(
+        "--jitter-dims",
+        dest="jitter_dims",
+        type=float,
+        help="sets jitter STD for room dims (no jitter if None)",
+        required=False,
+        default=None,
+    )
+
+    parser.add_argument(
+        "--jitter-abs",
+        dest="jitter_abs",
+        type=float,
+        help="sets jitter STD for surface absorption coefficients (no jitter if None)",
+        required=False,
+        default=None,
+    )
+
+    parser.add_argument(
+        "--jitter-scattering",
+        dest="jitter_scattering",
+        type=float,
+        help="sets jitter STD for scattering coefficient (no jitter if None)",
+        required=False,
+        default=None,
+    )
+
+    parser.add_argument(
+        "--n-rirs",
+        dest="n_rirs",
+        type=float,
+        help="number of RIRs to generate",
+        required=False,
+        default=20000,
+    )
+
+    parser.add_argument(
+        "--z-offset",
+        dest="z_offset",
+        type=float,
+        help="offset from ground for rirs",
+        required=False,
+        default=5e-2,
+    )
+    
+    parser.add_argument(
+        "--blocksize",
+        dest="blocksize",
+        type=int,
+        help="number of rirs to compute per job",
+        required=False,
+        default=100,
+    )
+    
+    parser.add_argument(
+        "--n-jobs",
+        dest="n_jobs",
+        type=int,
+        help="number jobs for computing rirs",
+        required=False,
+        default=16,
+    )
+
+    args = parser.parse_args()  
 
 
-default_conf_dict = {
-    'room' : {
-        'dim' : args.room_dims, #from aramis' experiments at base
-        'ceil_offset' : args.ceil_offset,
-        'wall_abs' : args.wall_abs, #from aramis' diff_ism experiments
-        'flor_abs' : args.flor_abs,
-        'ceil_abs' : args.ceil_abs,
-        'scattering' : args.scattering,
-        'max_order' : args.max_order,
-        'sr' : 125000,
-        'air_abs' : (scaled_coeffs, center_freqs),
-        
-        'jitter' : {
-            'dims' : args.jitter_dims,
-            'abs' : args.jitter_abs,
-            'scattering' : args.jitter_scattering
-        }
-    },
-    
-    'mics' : {
-        'mic_pos' : default_mic_pos,
-        'mic_dir' : default_mic_dir, #if none, point to center, otherwise, specify x,y,z
-        'mic_pattern' : "SUBCARDIOID", #specify directivity pattern
-        'mic_diam' : 0.036, #from aramis' experiments
-    },
-    
-    'srcs' : {
-        'n_src' : args.n_rirs, #specified per aramis' experiments
-        'src_pattern' : "OMNI", #specify directivity pattern
-        'z_offset': args.z_offset #offset from ground for sources
-    },
-    
-    'seed' : 5042024
+    default_conf_dict = {
+        'room' : {
+            'dim' : args.room_dims,
+            'ceil_offset' : args.ceil_offset,
+            'wall_abs' : args.wall_abs,
+            'flor_abs' : args.flor_abs,
+            'ceil_abs' : args.ceil_abs,
+            'scattering' : args.scattering,
+            'max_order' : args.max_order,
+            'sr' : 125000,
+            'air_abs' : (scaled_coeffs, center_freqs),
 
-}
+            'jitter' : {
+                'dims' : args.jitter_dims,
+                'abs' : args.jitter_abs,
+                'scattering' : args.jitter_scattering
+            }
+        },
+
+        'mics' : {
+            'mic_pos' : default_mic_pos,
+            'mic_dir' : default_mic_dir, #if none, point to center, otherwise, specify x,y,z
+            'mic_pattern' : "SUBCARDIOID", #specify directivity pattern
+            'mic_diam' : 0.036, #from aramis' experiments
+        },
+
+        'srcs' : {
+            'n_src' : args.n_rirs, #specified per aramis' experiments
+            'src_pattern' : "OMNI", #specify directivity pattern
+            'z_offset': args.z_offset #offset from ground for sources
+        },
+
+        'seed' : 5042024
+
+    }
 
 def arena_random_point(arena_dims,z_offset=5e-2, rng=None):
     if rng is None:
@@ -413,18 +433,15 @@ def construct_room(config):
     
     return room
 
-def get_rirs(config):
+def get_rirs(config, n_rir):
     rir_db = []
     src_config = config['srcs']
     
-    pbar = tqdm(total=src_config['n_src'])
     i = 0
-    while i<src_config['n_src']:
+    while i<n_rir:
         room = construct_room(config)
         pos = arena_random_point(config['room']['dim'],z_offset=src_config['z_offset'])
         
-        
-       
         azi = 360 * np.random.rand()
         col = 180 * np.random.rand()    
         dir_obj = CardioidFamily(orientation=DirectionVector(azimuth=azi, colatitude=col, degrees=True),
@@ -444,8 +461,6 @@ def get_rirs(config):
         if (rir>0).any():
             rir_db.append((rir, get_scaled_pos(config, pos)))
             i += 1
-            pbar.update(1)
-    pbar.close() 
     return rir_db
 
 def store_rirs(path, rir_db):
@@ -466,7 +481,7 @@ def store_rirs(path, rir_db):
         
 if __name__ == '__main__':
     if args.load_yaml is not None:
-        with open(default_yaml, 'r') as f:
+        with open(args.load_yaml, 'r') as f:
             conf_dict = yaml.load(f, yaml.Loader)
     else:
         conf_dict = default_conf_dict
@@ -476,5 +491,13 @@ if __name__ == '__main__':
             yaml.dump(conf_dict, f)
     
     if args.compute_rirs:
-        rir_db = get_rirs(conf_dict)
+        n_rir = int(conf_dict['srcs']['n_src'])
+        block_size = args.blocksize
+        p_args = [[conf_dict, block_size] for _ in range(n_rir//block_size)]
+        if n_rir%block_size>0:
+            args.append([conf_dict, n_rir%block_size])
+            
+        result = pqdm(p_args, get_rirs, n_jobs=args.n_jobs, argument_type='args')
+        print(result)
+        rir_db = sum(result, [])
         store_rirs(args.save_path, rir_db)
